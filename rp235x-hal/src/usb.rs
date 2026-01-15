@@ -557,22 +557,24 @@ impl UsbBusTrait for UsbBus {
             let ints = inner.ctrl_reg.ints().read();
             let mut buff_status = inner.ctrl_reg.buff_status().read().bits();
 
-            if ints.bus_reset().bit_is_set() {
+            if ints.dev_resume_from_host().bit_is_set() {
+                inner
+                    .ctrl_reg
+                    .sie_status()
+                    .write(|w| w.resume().clear_bit_by_one());
+                return PollResult::Resume;
+            } else if ints.bus_reset().bit_is_set() {
                 return PollResult::Reset;
-            } else if buff_status == 0 && ints.setup_req().bit_is_clear() {
-                if ints.dev_suspend().bit_is_set() {
-                    inner
-                        .ctrl_reg
-                        .sie_status()
-                        .write(|w| w.suspended().clear_bit_by_one());
-                    return PollResult::Suspend;
-                } else if ints.dev_resume_from_host().bit_is_set() {
-                    inner
-                        .ctrl_reg
-                        .sie_status()
-                        .write(|w| w.resume().clear_bit_by_one());
-                    return PollResult::Resume;
-                }
+            } else if ints.dev_suspend().bit_is_set() {
+                inner
+                    .ctrl_reg
+                    .sie_status()
+                    .write(|w| w.suspended().clear_bit_by_one());
+                return PollResult::Suspend;
+            }
+
+            // No events happened.
+            if buff_status == 0 && ints.setup_req().bit_is_clear() {
                 return PollResult::None;
             }
 
